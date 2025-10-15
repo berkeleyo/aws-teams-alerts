@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SNS -> Lambda -> Teams webhook (Adaptive Card) for CloudWatch alarms
+
+Parameters:
+  TeamsWebhookUrl:
+    Type: String
+    Description: Microsoft Teams incoming webhook URL
+  LambdaName:
+    Type: String
+    Default: teams-alerts-lambda
+
+Resources:
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: cloudwatch-alarms-to-teams
+
+  AlertsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref LambdaName
+      Handler: handler.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          TEAMS_WEBHOOK_URL: !Ref TeamsWebhookUrl
+      Role: !GetAtt AlertsFunctionRole.Arn
+      Code:
+        ZipFile: |
+          import json, os, urllib.request
+          TEAMS_WEBHOOK_URL = os.environ.get("TEAMS_WEBHOOK_URL","")
+          def post(card):
+              if not TEAMS_WEBHOOK_URL: raise RuntimeError("TEAMS_WEBHOOK_URL not set")
+              req = urllib.request.Request(TEAMS_WEBHOOK_URL, data=json.dumps(card).encode(), headers={"Content-Type":"application/json"})
+              urllib.request.urlopen(req, timeout=10).read()
+          def handler(event, context):
+              def card(title, severity, desc, link=None):
+                  return {"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","content":{"$schema":"http://adaptivecards.io/schemas/adaptive-card.json","type":"AdaptiveCard","version":"1.4","body":[{"type":"TextBlock","size":"Large","weight":"Bolder","text":title},{"type":"TextBlock","text":f"Severity: {severity}"},{"type":"TextBlock","wrap":True,"text":desc or "No description"}],"actions":([{"type":"Action.OpenUrl","title":"Open in AWS Console","url":link}] if link else [])}}]}
+              for rec in event.get("Records", []):
+                  if rec.get("EventSource") == "aws:sns":
+                      msg = rec["Sns"]["Message"]
+                      try:
+                          payload = json.loads(msg)
+                      except Exception:
+                          payload = {"AlarmText": msg}
+                      title = payload.get("AlarmName") or payload.get("AlarmDescription") or "CloudWatch Alarm"
+                      sev = payload.get("NewStateValue") or payload.get("Severity","N/A")
+                      desc = payload.get("NewStateReason") or "Alarm notification"
+                      link = payload.get("AlarmArn")
+                      post(card(title, sev, desc, link))
+              return {"ok":True}
+      Events:
+        SnsEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref AlertsTopic
+
+  AlertsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: [ lambda.amazonaws.com ] }
+            Action: [ 'sts:AssumeRole' ]
+      Policies:
+        - PolicyName: lambda-basic-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+Outputs:
+  SnsTopicArn:
+    Value: !Ref AlertsTopic
+    Description: Subscribe CloudWatch Alarms to this SNS topic
