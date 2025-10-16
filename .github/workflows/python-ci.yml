@@ -1,6 +1,7 @@
-name: py-ci
+﻿name: py-ci
 on:
-  push:
+  workflow_dispatch:
+push:
     branches: [ "main" ]
   pull_request:
 jobs:
@@ -16,3 +17,4 @@ jobs:
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
           pip install pytest
       - run: pytest -q
+
