@@ -1,6 +1,10 @@
+﻿![CI](https://github.com/berkeleyo/aws-teams-alerts/actions/workflows/python-ci.yml/badge.svg)
+![Dependabot](https://img.shields.io/badge/Dependabot-enabled-brightgreen)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 # AWS -> Teams Alerts
 
-**Flow:** CloudWatch Alarm → SNS Topic → Lambda → Teams Incoming Webhook (Adaptive Card).
+**Flow:** CloudWatch Alarm â†’ SNS Topic â†’ Lambda â†’ Teams Incoming Webhook (Adaptive Card).
 
 ## Deploy (CloudFormation)
 ```bash
@@ -13,3 +17,4 @@ aws cloudformation deploy \
 
 ## Wire CloudWatch
 - In your Alarm action, choose **SNS** and select the created topic `cloudwatch-alarms-to-teams`.
+
