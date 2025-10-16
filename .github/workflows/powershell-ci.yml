@@ -1,0 +1,14 @@
+name: PowerShell CI
+on:
+  pull_request:
+  push: { branches: [ main, master ] }
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PowerShell/PowerShell@v2
+      - shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
